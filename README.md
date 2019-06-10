@@ -1,5 +1,5 @@
 # InteractiveCommandLine
-A library to make shell-based programs, based on the amazing [Readline](https://github.com/tonerdo/readline) library.
+A library to make shell-based programs, based on the amazing [ReadLine](https://github.com/tonerdo/readline) library.
 
 # Usage
 You can see the Example console program or read below.
@@ -34,6 +34,8 @@ while (true)
     ICL.ReadAndExecute();
 }
 ```
+
+To display the auto generated documentation, type `help` in the console.
 
 # Parameters
 Parameters can be positional (no need to specify their name) or not.
