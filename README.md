@@ -2,7 +2,7 @@
 A library to make shell-based programs, based on the amazing [ReadLine](https://github.com/tonerdo/readline) library.
 
 # Usage
-You can see the Example console program or read below.
+You can see the [Example](https://github.com/openbullet/InteractiveCommandLine/blob/master/Example/Program.cs) console program or read below.
 
 First of all initialize ICL
 ```csharp
