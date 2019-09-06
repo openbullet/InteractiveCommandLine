@@ -59,3 +59,4 @@ To autocomplete folder names and file names from the filesystem you can use the 
 - multiple aliases for command names and parameter names
 - parameter aggregation e.g. -xvcf
 - mutually exclusive parameters
+- catch Ctrl+C to quit
