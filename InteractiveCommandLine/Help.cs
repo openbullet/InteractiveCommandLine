@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 
 namespace InteractiveCommandLine
 {
@@ -16,7 +15,7 @@ namespace InteractiveCommandLine
 To learn more about a command, type 'help command-name'
 ");
 
-            foreach(var command in ICL.commands)
+            foreach(var command in ICL.Commands)
             {
                 Write(command.Identifier, ConsoleColor.Yellow);
                 WriteLine($" - {command.Description}", ConsoleColor.White);
@@ -29,13 +28,13 @@ To learn more about a command, type 'help command-name'
 
             WriteLine(command.Identifier + Environment.NewLine, ConsoleColor.White);
             WriteLine("Syntax:", ConsoleColor.Cyan);
-            WriteLine($"{command.Identifier} {string.Join(' ', command.Parameters.Where(p => p.Positional).Select(p => p.Name))} [optional parameters]{Environment.NewLine}", ConsoleColor.White);
+            WriteLine($"{command.Identifier} {string.Join(' ', command.Parameters.Where(p => p.Required).Select(p => p.Name))} [optional parameters]{Environment.NewLine}", ConsoleColor.White);
             WriteLine("Description:", ConsoleColor.Cyan);
             WriteLine(command.Description + Environment.NewLine, ConsoleColor.White);
             WriteLine("Compulsory Parameters:", ConsoleColor.Cyan);
-            PrintParameters(command.Parameters.Where(p => p.Positional));
+            PrintParameters(command.Parameters.Where(p => p.Required));
             WriteLine("Optional Parameters:", ConsoleColor.Cyan);
-            PrintParameters(command.Parameters.Where(p => !p.Positional));
+            PrintParameters(command.Parameters.Where(p => !p.Required));
             WriteLine($"{Environment.NewLine}Examples:", ConsoleColor.Cyan);
 
             foreach (var example in command.Examples)
@@ -63,7 +62,7 @@ To learn more about a command, type 'help command-name'
         {
             foreach (var parameter in parameters)
             {
-                if (parameter.Positional)
+                if (parameter.Required)
                 {
                     WriteLine($"  {parameter.Name}", ConsoleColor.Yellow);
 
@@ -72,42 +71,48 @@ To learn more about a command, type 'help command-name'
                 }
                 else
                 {
-                    if (parameter.Name.Length == 1) WriteLine($"  -{parameter.Name}", ConsoleColor.Yellow);
-                    else WriteLine($"  --{parameter.Name}", ConsoleColor.Yellow);
+                    if (parameter.Name.Length == 1)
+                    {
+                        WriteLine($"  -{parameter.Name}", ConsoleColor.Yellow);
+                    }
+                    else
+                    {
+                        WriteLine($"  --{parameter.Name}", ConsoleColor.Yellow);
+                    }
 
                     Write($@"    Type: {parameter.GetType().Name}
     Description: {parameter.Description}
-    Default: {parameter.Default}", ConsoleColor.White);
+    Default: {parameter.DefaultString}", ConsoleColor.White);
                 }
                 
-                if (parameter.GetType() == typeof(IntParameter))
+                if (parameter is IntParameter intParam)
                 {
                     WriteLine($@"
-    Min: {(parameter as IntParameter).Min}
-    Max: {(parameter as IntParameter).Max}", ConsoleColor.White);
+    Min: {intParam.Min}
+    Max: {intParam.Max}", ConsoleColor.White);
                 }
-                else if (parameter.GetType() == typeof(LongParameter))
+                else if (parameter is LongParameter longParam)
                 {
                     WriteLine($@"
-    Min: {(parameter as LongParameter).Min}
-    Max: {(parameter as LongParameter).Max}", ConsoleColor.White);
+    Min: {longParam.Min}
+    Max: {longParam.Max}", ConsoleColor.White);
                 }
-                else if (parameter.GetType() == typeof(StringParameter))
+                else if (parameter is StringParameter stringParam)
                 {
                     WriteLine($@"
-    Min Length: {(parameter as StringParameter).MinLength}
-    Max Length: {(parameter as StringParameter).MaxLength}
-    Forbidden Characters: {new string((parameter as StringParameter).ForbiddenCharacters)}", ConsoleColor.White);
+    Min Length: {stringParam.MinLength}
+    Max Length: {stringParam.MaxLength}
+    Forbidden Characters: {new string(stringParam.ForbiddenCharacters)}", ConsoleColor.White);
                 }
-                else if (parameter.GetType() == typeof(EnumParameter))
+                else if (parameter is EnumParameter enumParam)
                 {
                     WriteLine($@"
-    Choices: {string.Join(", ", (parameter as EnumParameter).Choices)}", ConsoleColor.White);
+    Choices: {string.Join(", ", enumParam.Choices)}", ConsoleColor.White);
                 }
-                else if (parameter.GetType() == typeof(DateParameter))
+                else if (parameter is DateTimeParameter dateTimeParam)
                 {
                     WriteLine($@"
-    Format: {(parameter as DateParameter).Format}", ConsoleColor.White);
+    Format: {dateTimeParam.Format}", ConsoleColor.White);
                 }
                 else
                 {

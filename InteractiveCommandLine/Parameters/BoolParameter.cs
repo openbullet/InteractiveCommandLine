@@ -1,29 +1,21 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace InteractiveCommandLine.Parameters
 {
-    /// <summary>
-    /// A bool parameter.
-    /// </summary>
-    public class BoolParameter : Parameter
+    internal class BoolParameter : Parameter
     {
-        /// <summary>
-        /// Creates a bool parameter.
-        /// </summary>
-        /// <param name="name">The name of the parameter</param>
-        /// <param name="description">The description of what the parameter changes</param>
-        public BoolParameter(string name, string description = "No description provided")
-        {
-            Name = name;
-            Description = description;
-            Default = "false";
-        }
+        internal bool Default { get; set; } = false;
+        internal override string DefaultString => Default.ToString();
 
-        internal override void CheckValidity(string value)
+        // TODO: Move these out of parameter classes, logic shouldn't be in here!!
+        internal bool ParseAndValidate(string value)
         {
-            
+            if (!bool.TryParse(value, out bool boolValue))
+            {
+                throw new FormatException("Not a boolean");
+            }
+
+            return boolValue;
         }
     }
 }

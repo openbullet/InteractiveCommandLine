@@ -6,17 +6,23 @@ using System.Linq;
 
 namespace InteractiveCommandLine
 {
-    class AutoCompletionHandler : IAutoCompleteHandler
+    internal class AutoCompletionHandler : IAutoCompleteHandler
     {
-        // characters to start completion from
+        // Characters to start completion from
         public char[] Separators { get; set; } = new char[] { ' ', '.', '/' };
 
-        internal Dictionary<string, string[]> Lists = new Dictionary<string, string[]>();
+        internal Dictionary<string, string[]> Lists = new();
 
         internal void AddCompletion(string name, string[] choices)
         {
-            if (Lists.ContainsKey(name)) Lists[name] = choices;
-            else Lists.Add(name, choices);
+            if (Lists.ContainsKey(name))
+            {
+                Lists[name] = choices;
+            }
+            else
+            {
+                Lists.Add(name, choices);
+            }
         }
 
         // text - The current text entered in the console
@@ -31,16 +37,20 @@ namespace InteractiveCommandLine
                 // If no command matches, I'm typing the command name so return those
                 if (command == null)
                 {
-                    var identifiers = ICL.commands.Select(b => b.Identifier).Concat(new string[] { ICL.HelpCommand }).ToArray();
+                    var identifiers = ICL.Commands.Select(b => b.Identifier).Concat(new string[] { ICL.HelpCommand }).ToArray();
 
                     // If we didn't type anything yet we return all the possible options
-                    if (text == "") return identifiers;
+                    if (text == "")
+                    {
+                        return identifiers;
+                    }
 
                     // If it's the help command, we return the options for it
                     var tempSplit = text.Split(' ');
-                    if (tempSplit.Count() == 2 && tempSplit[0] == ICL.HelpCommand)
+
+                    if (tempSplit.Length == 2 && tempSplit[0] == ICL.HelpCommand)
                     {
-                        return ICL.commands.Select(b => b.Identifier)
+                        return ICL.Commands.Select(b => b.Identifier)
                             .Where(i => i.StartsWith(tempSplit[1], StringComparison.InvariantCultureIgnoreCase)).ToArray();
                     }
 
@@ -51,7 +61,7 @@ namespace InteractiveCommandLine
                 // For this you don't need to get the Parameter object, just check how many positional params are in the Command
                 // Check if the parameter is positional or not (just count the positional parameters and the currently typed ones)
                 var split = Utils.SplitLine(text.Substring(command.Identifier.Length + 1));
-                var positional = command.Parameters[split.Count - 1].Positional;
+                var positional = !command.Parameters[split.Count - 1].Required;
 
                 Parameter parameter = null;
 
@@ -85,59 +95,79 @@ namespace InteractiveCommandLine
                 if (!Utils.IsStringParameter(parameter.GetType())) throw new Exception(); // Cannot autocomplete int, long etc.
 
                 // If autocomplete = list -> search for the list with that name and return those
-                if (parameter.GetType() == typeof(StringParameter))
+                if (parameter is StringParameter stringParam)
                 {
-                    if (!string.IsNullOrEmpty(parameter.AutoCompleteList))
+                    if (!string.IsNullOrEmpty(stringParam.AutoCompleteList))
                     {
                         // If we didn't type anything yet (the last is still the parameter name) we return all the possible options
-                        if (Utils.IsParameter(split.Last())) return Lists.First(l => l.Key == parameter.AutoCompleteList).Value;
+                        if (Utils.IsParameter(split.Last()))
+                        {
+                            return Lists.First(l => l.Key == stringParam.AutoCompleteList).Value;
+                        }
 
                         // Otherwise we return only the options that start with the correct text
-                        else return Lists.First(l => l.Key == parameter.AutoCompleteList).Value
+                        else
+                        {
+                            return Lists.First(l => l.Key == stringParam.AutoCompleteList).Value
                                 .Where(c => c.StartsWith(split.Last(), StringComparison.InvariantCultureIgnoreCase)).ToArray();
+                        }
                     }
                 }
-                else if (parameter.GetType() == typeof(EnumParameter))
+                else if (parameter is EnumParameter enumParam)
                 {
                     // If we didn't type anything yet (the last is still the parameter name) we return all the possible options
-                    if (Utils.IsParameter(split.Last())) return (parameter as EnumParameter).Choices;
+                    if (Utils.IsParameter(split.Last()))
+                    {
+                        return enumParam.Choices.ToArray();
+                    }
 
                     // Otherwise we return only the options that start with the correct text
-                    else return (parameter as EnumParameter).Choices
-                            .Where(c => c.StartsWith(split.Last(), StringComparison.InvariantCultureIgnoreCase)).ToArray();
+                    else
+                    {
+                        return enumParam.Choices.Where(c => c.StartsWith(split.Last(),
+                            StringComparison.InvariantCultureIgnoreCase)).ToArray();
+                    }
                 }
-                else if (parameter.GetType() == typeof(FileOrFolderParameter))
+                else if (parameter is FileOrFolderParameter)
                 {
                     var last = split.Last();
                     var dir = Path.GetDirectoryName(last);
                     var lastChunk = last.Contains('/') ? last.Split('/').Last() : last;
-                    if (dir == "") dir = "./";
-                    if (lastChunk == "") return GetFilesAndFolders(dir);
-                    else return GetFilesAndFolders(dir).Where(f => f.StartsWith(lastChunk)).ToArray();
+                    
+                    if (dir == "")
+                    {
+                        dir = "./";
+                    }
+
+                    if (lastChunk == "")
+                    {
+                        return GetFilesAndFolders(dir);
+                    }
+                    else
+                    {
+                        return GetFilesAndFolders(dir).Where(f => f.StartsWith(lastChunk)).ToArray();
+                    }
                 }
             }
-            catch { }
+            catch
+            {
+                
+            }
 
-            return new string[] { };
+            return Array.Empty<string>();
         }
 
-        private string[] GetFiles(string path)
-        {
-            return Directory.EnumerateFiles(path)
+        private static string[] GetFiles(string path)
+            => Directory.EnumerateFiles(path)
                 //.Select(f => Path.Combine(path, f.Replace('\\', '/'))).ToArray();
                 .Select(f => Path.GetFileName(f.Replace('\\', '/'))).ToArray();
-        }
 
-        private string[] GetFolders(string path)
-        {
-            return Directory.EnumerateDirectories(path)
+        private static string[] GetFolders(string path)
+            => Directory.EnumerateDirectories(path)
                 //.Select(d => Path.Combine(path, d.Replace('\\', '/'))).ToArray();
                 .Select(d => Path.GetFileName(d.Replace('\\', '/')) + "/").ToArray();
-        }
 
-        private string[] GetFilesAndFolders(string path)
-        {
-            return GetFolders(path).Concat(GetFiles(path)).ToArray();
-        }
+        private static string[] GetFilesAndFolders(string path)
+            => GetFolders(path).Concat(GetFiles(path)).ToArray();
     }
 }

@@ -1,44 +1,16 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace InteractiveCommandLine.Parameters
 {
-    /// <summary>
-    /// A string array parameter.
-    /// </summary>
-    public class StringArrayParameter : Parameter
+    internal class StringArrayParameter : Parameter
     {
-        /// <summary>
-        /// The minimum number of elements.
-        /// </summary>
-        public int MinSize { get; set; }
+        internal int MinSize { get; set; } = 0;
+        internal int MaxSize { get; set; } = int.MaxValue;
+        internal string[] Default { get; set; }
 
-        /// <summary>
-        /// The maximum number of elements.
-        /// </summary>
-        public int MaxSize { get; set; }
+        internal override string DefaultString => string.Join(',', Default);
 
-        /// <summary>
-        /// Creates a string parameter.
-        /// </summary>
-        /// <param name="name">The name of the parameter</param>
-        /// <param name="description">The description of what the parameter changes</param>
-        /// <param name="def">The default value</param>
-        /// <param name="positional">Whether the parameter is positional</param>
-        /// <param name="minSize">The mimimum number of elements</param>
-        /// <param name="maxSize">The maximum number of elements</param>
-        public StringArrayParameter(string name, string description = "No description provided", string def = "", bool positional = false, int minSize = 1, int maxSize = 100)
-        {
-            Name = name;
-            Description = description;
-            Default = def;
-            Positional = positional;
-            MinSize = minSize;
-            MaxSize = maxSize;
-        }
-
-        internal override void CheckValidity(string value)
+        internal string[] ParseAndValidate(string value)
         {
             string[] arrayValue = value.Split(',');
 
@@ -51,6 +23,8 @@ namespace InteractiveCommandLine.Parameters
             {
                 throw new Exception($"The array has too few elements! Min: {MinSize} | Size: {arrayValue.Length}");
             }
+
+            return arrayValue;
         }
     }
 }

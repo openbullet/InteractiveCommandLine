@@ -1,75 +1,29 @@
 ﻿using InteractiveCommandLine.Parameters;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
+using System.Reflection;
 
 namespace InteractiveCommandLine
 {
-    /// <summary>
-    /// A command that the user can call.
-    /// </summary>
-    public class Command
+    internal class Command
     {
-        /// <summary>
-        /// The identifier of the command.
-        /// </summary>
-        public string Identifier { get; set; }
+        internal bool Stateful { get; set; }
+        internal string Identifier { get; set; }
+        internal string Description { get; set; }
+        internal MethodInfo Method { get; set; }
+        internal Parameter[] Parameters { get; set; }
+        internal string[] Examples { get; set; }
 
-        /// <summary>
-        /// The description of the command.
-        /// </summary>
-        public string Description { get; set; }
-
-        /// <summary>
-        /// The action that will be executed when the command is called.
-        /// </summary>
-        public Action<Parsed> Action { get; set; }
-
-        /// <summary>
-        /// The list of parameters that the command supports.
-        /// </summary>
-        public Parameter[] Parameters { get; set; }
-
-        /// <summary>
-        /// A list of examples that are shown in the help message.
-        /// </summary>
-        public string[] Examples { get; set; }
-
-        /// <summary>
-        /// Makes a new command
-        /// </summary>
-        /// <param name="identifier">The name of the command</param>
-        /// <param name="action">The action to take in case of a match</param>
-        /// <param name="parameters">The accepted parameters</param>
-        /// <param name="description">A description of what the command does</param>
-        /// <param name="examples">A list of examples that are shown to the user in the help message</param>
-        public Command(string identifier, Action<Parsed> action, Parameter[] parameters = null, string description = "No description provided", string[] examples = null)
+        internal Command(string identifier, MethodInfo method, Parameter[] parameters = null,
+            string description = "No description provided", string[] examples = null)
         {
             Identifier = identifier;
             Description = description;
-            Action = action;
+            Method = method;
 
-            if (parameters == null) Parameters = new Parameter[] { };
-            else Parameters = parameters;
-
-            if (examples == null) Examples = new string[] { };
-            else Examples = examples;
-
-            CheckParameterValidity();
-        }
-
-        /// <summary>
-        /// Adds an input parameter to the command.
-        /// </summary>
-        /// <param name="parameter">The input parameter</param>
-        public void AddParameter(Parameter parameter)
-        {
-            var list = Parameters.ToList();
-            list.Add(parameter);
-            Parameters = list.ToArray();
+            Parameters = parameters ?? Array.Empty<Parameter>();
+            Examples = examples ?? Array.Empty<string>();
 
             CheckParameterValidity();
         }
@@ -77,9 +31,10 @@ namespace InteractiveCommandLine
         private void CheckParameterValidity()
         {
             // Check if the parameters provided are valid (normal params MUST follow positional params)
-            var normalIndices = Parameters.Where(p => !p.Positional).Select(p => Parameters.ToList().IndexOf(p)).OrderBy(i => i);
-            var positionalIndices = Parameters.Where(p => p.Positional).Select(p => Parameters.ToList().IndexOf(p)).OrderBy(i => i);
-            if (normalIndices.Count() > 0 && positionalIndices.Count() > 0 && positionalIndices.Last() > normalIndices.First())
+            var normalIndices = Parameters.Where(p => !p.Required).Select(p => Parameters.ToList().IndexOf(p)).OrderBy(i => i);
+            var positionalIndices = Parameters.Where(p => p.Required).Select(p => Parameters.ToList().IndexOf(p)).OrderBy(i => i);
+            
+            if (normalIndices.Any() && positionalIndices.Any() && positionalIndices.Last() > normalIndices.First())
             {
                 throw new Exception("Positional parameters cannot follow normal parameters!");
             }
@@ -101,132 +56,99 @@ namespace InteractiveCommandLine
             return line.StartsWith(Identifier);
         }
 
-        internal void Execute(string line)
+        internal void Execute(object state, string line)
         {
-            // Parse all the parameters, if some are invalid return false and the error
-            Parsed parsed = new Parsed();
-            CultureInfo provider = CultureInfo.InvariantCulture;
+            List<object> parsedValues = new();
 
-            for (var i = 0; i < Parameters.Count(); i++)
+            if (Stateful)
+            {
+                parsedValues.Add(state);
+            }
+
+            // Parse all the parameters
+            for (var i = 0; i < Parameters.Length; i++)
             {
                 var parameter = Parameters[i];
 
-                // If not bool, not positional and not present
-                if (parameter.GetType() != typeof(BoolParameter) && !parameter.Positional && !Utils.IsParameterPresent(line, parameter.Name))
+                // A bool parameter does not need a value, it just needs to be present
+                if (parameter is BoolParameter)
                 {
-                    // If not essential, add the default value
-                    if (!parameter.Essential)
-                    {
-                        if (parameter.GetType() == typeof(IntParameter))
-                        {
-                            parsed.AddInt(parameter.Name, int.Parse(parameter.Default));
-                        }
-                        else if (parameter.GetType() == typeof(LongParameter))
-                        {
-                            parsed.AddLong(parameter.Name, long.Parse(parameter.Default));
-                        }
-                        else if (parameter.GetType() == typeof(DateParameter))
-                        {
-                            parsed.AddDate(parameter.Name, DateTime.ParseExact(parameter.Default, (parameter as DateParameter).Format, provider));
-                        }
-                        else if (Utils.IsStringParameter(parameter.GetType()))
-                        {
-                            parsed.AddString(parameter.Name, parameter.Default);
-                        }
-                        else if (parameter.GetType() == typeof(StringArrayParameter))
-                        {
-                            parsed.AddStringArray(parameter.Name, parameter.Default == "" ? new string[] { } : parameter.Default.Split(','));
-                        }
-                    }
-
-                    // If essential (and not present) throw error
-                    else
-                    {
-                        throw new Exception($"Parameter {parameter.Name} is required");
-                    }
-
+                    parsedValues.Add(Utils.IsParameterPresent(line, parameter.Name));
                     continue;
                 }
 
-                string p = ""; // The parsed value
-
-                // The bool parameter does not need a value, it just needs to be presentx  
-                if (parameter.GetType() == typeof(BoolParameter))
+                // If required, try to parse it from the string
+                if (parameter.Required)
                 {
-                    parsed.AddBool(parameter.Name, Utils.IsParameterPresent(line, parameter.Name));
+                    try
+                    {
+                        parsedValues.Add(ParseString(parameter, Utils.ParsePositionalParameter(line, i, Identifier)));
+                    }
+                    catch (ArgumentOutOfRangeException)
+                    {
+                        throw new Exception($"Parameter '{parameter.Name}' is required");
+                    }
                 }
 
-                // Other parameters need a value
+                // If not required
                 else
                 {
-                    // Positional parameter, just parse the value not the name
-                    if (parameter.Positional)
+                    // If not present, use the default value
+                    if (!Utils.IsParameterPresent(line, parameter.Name))
                     {
-                        try
+                        parsedValues.Add(parameter switch
                         {
-                            p = Utils.ParsePositionalParameter(line, i, Identifier);
-                        }
-                        catch
-                        {
-                            throw new Exception($"Parameter {parameter.Name} is required");
-                        }
+                            BoolParameter boolParam => boolParam.Default,
+                            DateTimeParameter dateTimeParam => dateTimeParam.Default,
+                            EnumParameter enumParam => enumParam.Default,
+                            FileOrFolderParameter fofParam => fofParam.Default,
+                            IntParameter intParam => intParam.Default,
+                            LongParameter longParam => longParam.Default,
+                            StringArrayParameter stringArrayParam => stringArrayParam.Default,
+                            StringParameter stringParam => stringParam.Default,
+                            _ => throw new NotImplementedException()
+                        });
                     }
 
-                    // Normal parameter e.g. -a 10 or --min-amount 15
+                    // Otherwise parse its value specified by the user
                     else
                     {
-                        try
-                        {
-                            p = Utils.ParseValueParameter(line, parameter.Name);
-                        }
-                        catch
-                        {
-                            if (parameter.Essential) throw new Exception($"Parameter {parameter.Name} is required");
-                            else continue;
-                        }
-                    }
-
-                    parameter.CheckValidity(p);
-
-                    if (parameter.GetType() == typeof(IntParameter))
-                    {
-                        parsed.AddInt(parameter.Name, int.Parse(p));
-                    }
-                    else if (parameter.GetType() == typeof(LongParameter))
-                    {
-                        parsed.AddLong(parameter.Name, long.Parse(p));
-                    }
-                    else if (parameter.GetType() == typeof(DateParameter))
-                    {
-                        parsed.AddDate(parameter.Name, DateTime.ParseExact(p, (parameter as DateParameter).Format, provider));
-                    }
-                    else if (Utils.IsStringParameter(parameter.GetType()))
-                    {
-                        parsed.AddString(parameter.Name, p);
-                    }
-                    else if (parameter.GetType() == typeof(StringArrayParameter))
-                    {
-                        parsed.AddStringArray(parameter.Name, p == "" ? new string[] { } : p.Split(','));
+                        parsedValues.Add(ParseString(parameter, Utils.ParseValueParameter(line, parameter.Name)));
                     }
                 }
             }
 
-            // Execute the action
-            if (ICL.CatchExceptions)
+            // Try to execute the method
+            try
             {
-                try
-                {
-                    Action.Invoke(parsed);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Failed! Reason: {ex.Message}");
-                }
+                Method.Invoke(null, parsedValues.ToArray());
             }
-            else
+            catch (Exception ex)
             {
-                Action.Invoke(parsed);
+                if (ICL.CatchExceptions)
+                {
+                    var message = ex.InnerException is null ? ex.Message : ex.InnerException.Message;
+                    Console.WriteLine($"Failed! Reason: {message}");
+                }
+                else
+                {
+                    throw;
+                }
             }
         }
+
+        private static object ParseString(Parameter parameter, string value)
+            => parameter switch
+            {
+                BoolParameter boolParam => boolParam.ParseAndValidate(value),
+                DateTimeParameter dateTimeParam => dateTimeParam.ParseAndValidate(value),
+                EnumParameter enumParam => enumParam.ParseAndValidate(value),
+                FileOrFolderParameter fofParam => fofParam.ParseAndValidate(value),
+                IntParameter intParam => intParam.ParseAndValidate(value),
+                LongParameter longParam => longParam.ParseAndValidate(value),
+                StringArrayParameter stringArrayParam => stringArrayParam.ParseAndValidate(value),
+                StringParameter stringParam => stringParam.ParseAndValidate(value),
+                _ => throw new NotImplementedException()
+            };
     }
 }

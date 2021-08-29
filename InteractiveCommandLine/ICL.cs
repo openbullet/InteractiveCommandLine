@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 
 namespace InteractiveCommandLine
 {
@@ -9,32 +11,36 @@ namespace InteractiveCommandLine
     /// </summary>
     public static class ICL
     {
-        internal static List<Command> commands = new List<Command>();
-
         /// <summary>
         /// The default action to be taken when no command is matched.
         /// </summary>
-        public static Action DefaultAction = new Action(() => Console.WriteLine("No command matches the line."));
+        public static Action DefaultAction { get; set; } = new Action(() => Console.WriteLine("No command matches the line."));
 
         /// <summary>
         /// Whether to catch all exceptions generated while invoking actions and print the message to the console.
         /// </summary>
-        public static bool CatchExceptions = true;
+        public static bool CatchExceptions { get; set; } = true;
 
         /// <summary>
-        /// The command used to display the help text.
+        /// The command used to display the help text. By default it's 'help'.
         /// </summary>
-        public static string HelpCommand = "help";
+        public static string HelpCommand { get; set; } = "help";
 
-        private static AutoCompletionHandler ach = new AutoCompletionHandler();
+        internal static IEnumerable<Command> Commands => repo.Commands;
+
+        private static readonly CommandsRepository repo = new();
+        private static readonly AutoCompletionHandler ach = new();
 
         /// <summary>
         /// Initializes the ReadLine with History and Auto Completion.
         /// </summary>
-        public static void Initialize()
+        /// <param name="assembly">The assembly where commands are specified.</param>
+        public static void Initialize(Assembly assembly)
         {
             ReadLine.HistoryEnabled = true;
             ReadLine.AutoCompletionHandler = ach;
+
+            repo.AddFromExposedMethods(assembly);
         }
 
         /// <summary>
@@ -42,43 +48,28 @@ namespace InteractiveCommandLine
         /// </summary>
         /// <param name="name">The name of the list</param>
         /// <param name="choices">The choices that the autocomplete will suggest</param>
-        public static void SetAutoCompletion(string name, string[] choices)
-        {
-            ach.AddCompletion(name, choices);
-        }
+        public static void SetAutoCompletion(string name, string[] choices) => ach.AddCompletion(name, choices);
 
-        /// <summary>
-        /// Adds a command to the ICL.
-        /// </summary>
-        /// <param name="identifier">The command identifier</param>
-        /// <param name="action">The action that needs to be executed</param>
-        /// <param name="parameters">The accepted input parameters</param>
-        /// <param name="description">A description of what the command does</param>
-        /// <param name="examples">A list of examples that are shown to the user in the help message</param>
-        public static void AddCommand(string identifier, Action<Parsed> action, Parameter[] parameters, string description = "No description provided", string[] examples = null)
-        {
-            commands.Add(new Command(identifier, action, parameters, description, examples));
-        }
-
-        internal static Command MatchCommand(string line)
-        {
-            return commands
-                .OrderBy(b => b.Identifier.Length)
-                .Reverse()
-                .FirstOrDefault(b => b.MatchesLine(line));
-        }
+        internal static Command MatchCommand(string line) => repo.Commands
+            .OrderBy(b => b.Identifier.Length)
+            .Reverse()
+            .FirstOrDefault(b => b.MatchesLine(line));
 
         /// <summary>
         /// Reads the command line and executes the matched command.
         /// </summary>
-        public static void ReadAndExecute()
+        /// <param name="state">The class that holds the state.</param>
+        public static void ReadAndExecute(object state)
         {
             var line = ReadLine.Read();
-
             var split = line.Split(' ');
+
             if (split.First() == HelpCommand)
             {
-                if (line == HelpCommand) Help.PrintAvailableCommands();
+                if (line == HelpCommand)
+                {
+                    Help.PrintAvailableCommands();
+                }
                 else
                 {
                     // Try to get an existing command
@@ -107,7 +98,7 @@ namespace InteractiveCommandLine
             {
                 try
                 {
-                    command.Execute(line);
+                    command.Execute(state, line);
                 }
                 catch (Exception ex)
                 {
