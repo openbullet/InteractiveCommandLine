@@ -131,6 +131,7 @@ namespace InteractiveCommandLine
                     param.MinLength = stringAttribute.MinLength;
                     param.MaxLength = stringAttribute.MaxLength;
                     param.ForbiddenCharacters = stringAttribute.ForbiddenCharacters.ToCharArray();
+                    param.AutoCompleteList = stringAttribute.AutoCompleteList;
                 }
 
                 return param;

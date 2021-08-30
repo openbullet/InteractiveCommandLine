@@ -48,7 +48,7 @@ namespace InteractiveCommandLine
         /// </summary>
         /// <param name="name">The name of the list</param>
         /// <param name="choices">The choices that the autocomplete will suggest</param>
-        public static void SetAutoCompletion(string name, string[] choices) => ach.AddCompletion(name, choices);
+        public static void SetAutoCompletion(string name, List<string> choices) => ach.AddCompletion(name, choices);
 
         internal static Command MatchCommand(string line) => repo.Commands
             .OrderBy(b => b.Identifier.Length)

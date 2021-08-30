@@ -11,19 +11,10 @@ namespace InteractiveCommandLine
         // Characters to start completion from
         public char[] Separators { get; set; } = new char[] { ' ', '.', '/' };
 
-        internal Dictionary<string, string[]> Lists = new();
+        private readonly Dictionary<string, List<string>> lists = new();
 
-        internal void AddCompletion(string name, string[] choices)
-        {
-            if (Lists.ContainsKey(name))
-            {
-                Lists[name] = choices;
-            }
-            else
-            {
-                Lists.Add(name, choices);
-            }
-        }
+        internal void AddCompletion(string name, List<string> choices)
+            => lists[name] = choices;
 
         // text - The current text entered in the console
         // index - The index of the terminal cursor within {text}
@@ -58,15 +49,13 @@ namespace InteractiveCommandLine
                     return identifiers.Where(i => i.StartsWith(text, StringComparison.InvariantCultureIgnoreCase)).ToArray();
                 }
 
-                // For this you don't need to get the Parameter object, just check how many positional params are in the Command
-                // Check if the parameter is positional or not (just count the positional parameters and the currently typed ones)
                 var split = Utils.SplitLine(text.Substring(command.Identifier.Length + 1));
-                var positional = !command.Parameters[split.Count - 1].Required;
+                var required = command.Parameters[split.Count - 1].Required;
 
                 Parameter parameter = null;
 
                 // If positional ...
-                if (positional)
+                if (required)
                 {
                     parameter = command.Parameters[split.Count - 1];
                 }
@@ -102,13 +91,13 @@ namespace InteractiveCommandLine
                         // If we didn't type anything yet (the last is still the parameter name) we return all the possible options
                         if (Utils.IsParameter(split.Last()))
                         {
-                            return Lists.First(l => l.Key == stringParam.AutoCompleteList).Value;
+                            return lists.First(l => l.Key == stringParam.AutoCompleteList).Value.ToArray();
                         }
 
                         // Otherwise we return only the options that start with the correct text
                         else
                         {
-                            return Lists.First(l => l.Key == stringParam.AutoCompleteList).Value
+                            return lists.First(l => l.Key == stringParam.AutoCompleteList).Value
                                 .Where(c => c.StartsWith(split.Last(), StringComparison.InvariantCultureIgnoreCase)).ToArray();
                         }
                     }
@@ -149,7 +138,7 @@ namespace InteractiveCommandLine
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
                 
             }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using InteractiveCommandLine;
 using InteractiveCommandLine.Attributes;
@@ -14,6 +15,9 @@ namespace Example
             // Initialize the Interactive Command Line
             ICL.Initialize(typeof(Program).Assembly);
 
+            // Set an auto-completion list
+            ICL.SetAutoCompletion("todo", state.ToDoList);
+
             // Begin the loop
             while (true)
             {
@@ -28,6 +32,7 @@ namespace Example
     public class State
     {
         public int Counter { get; set; } = 1;
+        public List<string> ToDoList { get; set; } = new();
     }
 
     // Define all your commands as static methods
@@ -38,14 +43,6 @@ namespace Example
         public static void Greet([Param("Your name")] string name)
         {
             Console.WriteLine($"Hello {name} and welcome to ICL!");
-        }
-
-        // Commands can optionally accept a state as the first parameter
-        // Do not use the Param attribute for this parameter
-        [Command("stateful", "Prints the stateful counter's value and increases it by 1", "state")]
-        public static void StatefulCommand(State state)
-        {
-            Console.WriteLine($"The counter inside the state is {state.Counter++}");
         }
 
         [Command("count", "Counts from 1 to your number", "count 10")]
@@ -93,6 +90,40 @@ namespace Example
             {
                 Console.WriteLine("Could not contact the API!");
             }
+        }
+
+        // -----------------
+        // STATEFUL COMMANDS
+        // -----------------
+        // Commands can optionally accept a state as the first parameter
+        // Do not use the Param attribute for this parameter
+
+        [Command("stateful", "Prints the stateful counter's value and increases it by 1", "state")]
+        public static void StatefulCommand(State state)
+        {
+            Console.WriteLine($"The counter inside the state is {state.Counter++}");
+        }
+
+        [Command("todo-add", "Adds an item to the todo list", "todo add \"Make bread\"")]
+        public static void TodoAdd(State state, [Param("The item to add")] string item)
+        {
+            state.ToDoList.Add(item);
+            Console.WriteLine($"Added {item} to the todo list. Current items:");
+            Console.WriteLine(string.Join(Environment.NewLine, state.ToDoList));
+        }
+
+        [Command("todo-remove", "Removes an item from the todo list", "todo remove \"Make bread\"")]
+        public static void TodoRemove(State state, [Param("The item to remove"), String(AutoCompleteList = "todo")] string item)
+        {
+            if (!state.ToDoList.Contains(item))
+            {
+                Console.WriteLine("The item does not exist");
+                return;
+            }
+
+            state.ToDoList.Remove(item);
+            Console.WriteLine($"Removed {item} from the todo list. Current items:");
+            Console.WriteLine(string.Join(Environment.NewLine, state.ToDoList));
         }
 
         [Command("quit", "Quits the program", "quit")]

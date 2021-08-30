@@ -24,6 +24,11 @@ namespace InteractiveCommandLine.Attributes
         public string ForbiddenCharacters { get; set; }
 
         /// <summary>
+        /// The name of the auto-completion list to use for suggestions.
+        /// </summary>
+        public string AutoCompleteList { get; set; }
+
+        /// <summary>
         /// Configures a string parameter.
         /// </summary>
         /// <param name="minLength">The minimum length of the string.</param>
