@@ -58,8 +58,13 @@ namespace InteractiveCommandLine
                     }
 
                     // Build and add the command
-                    commands.Add(new Command(id, method, parameters.Select(p => BuildParameter(p)).ToArray(),
-                        attribute.Description, attribute.Examples));
+                    var command = new Command(id, method, parameters.Select(p => BuildParameter(p)).ToArray(),
+                        attribute.Description, attribute.Examples)
+                    {
+                        Stateful = stateful
+                    };
+
+                    commands.Add(command);
                 }
             }
         }
